@@ -127,7 +127,7 @@ function Player({ code, token }: { code: string; token: string }) {
             <span className="text-4xl">🎰</span>
             <span className="flex-1">
               <span className="font-display block text-lg font-black">The Casino</span>
-              <span className="block text-sm text-white/60">Red/black, lucky number, dice. Go all in with {money(me.cash, { compact: true })}. Winnings taxed {Math.round(game.tax_gamble * 100)}%.</span>
+              <span className="block text-sm text-white/60">Red/black, lucky number, dice, blackjack. Go all in with {money(me.cash, { compact: true })}. Winnings taxed {Math.round(game.tax_gamble * 100)}%.</span>
             </span>
             <span className="text-2xl">›</span>
           </button>
