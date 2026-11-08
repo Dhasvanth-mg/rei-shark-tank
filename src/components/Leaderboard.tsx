@@ -34,7 +34,7 @@ export function Leaderboard({ players, results, startingCash, meId, limit, big =
         return (
           <li
             key={p.id}
-            className={`relative overflow-hidden rounded-xl border ${p.id === meId ? "border-navy bg-navy/5" : "border-steel-light bg-white"} ${big ? "px-5 py-3" : "px-3 py-2"} anim-rise`}
+            className={`relative overflow-hidden rounded-xl border text-ink ${p.id === meId ? "border-navy bg-navy/5" : "border-steel-light bg-white"} ${big ? "px-5 py-3" : "px-3 py-2"} anim-rise`}
           >
             <div className="absolute inset-y-0 left-0 bg-steel-pale -z-0" style={{ width: `${width}%` }} />
             <div className="relative flex items-center gap-3">
