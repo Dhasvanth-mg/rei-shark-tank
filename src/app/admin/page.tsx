@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { randomProperty } from "@/lib/generator";
+import { photoFor } from "@/lib/photos";
 import { rpc } from "@/lib/supabase";
 import { rememberGame, saveAdminPass } from "@/lib/storage";
 import { useAct, Toast } from "@/lib/useAct";
@@ -17,6 +19,8 @@ export default function AdminHome() {
   const [rounds, setRounds] = useState(3);
   const [cash, setCash] = useState(1_000_000);
   const [scarcity, setScarcity] = useState(false);
+  const [extra, setExtra] = useState(0);
+  const [progress, setProgress] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [pass, setPass] = useState("");
 
@@ -29,6 +33,14 @@ export default function AdminHome() {
       });
       saveAdminPass(g.code, g.admin_pass);
       rememberGame(g.code, name);
+      const n = Math.min(40, Math.max(0, Math.round(extra)));
+      for (let i = 0; i < n; i++) {
+        setProgress(`Generating properties ${i + 1}/${n}…`);
+        const def = randomProperty();
+        const image_url = await photoFor(def.type, i);
+        await rpc("admin_add_property", { p_code: g.code, p_pass: g.admin_pass, p_def: { ...def, image_url } });
+      }
+      setProgress(null);
       router.push(`/admin/${g.code}`);
     });
   };
@@ -66,11 +78,15 @@ export default function AdminHome() {
             <Field label="Market rounds"><Num v={rounds} set={setRounds} min={1} max={10} step={1} /></Field>
             <Field label="Starting cash ($)"><Num v={cash} set={setCash} min={1000} max={100_000_000} step={50_000} /></Field>
           </div>
+          <Field label="Extra random properties to generate (0–40)">
+            <Num v={extra} set={setExtra} min={0} max={40} step={1} />
+            <span className="mt-1 block text-xs text-steel">Added on top of the 21 built-in listings, each with a matching photo.</span>
+          </Field>
           <label className="flex items-start gap-3 rounded-xl bg-steel-pale p-3">
             <input type="checkbox" checked={scarcity} onChange={(e) => setScarcity(e.target.checked)} className="mt-1 h-5 w-5 accent-navy" />
             <span><b>Limited stock</b><span className="block text-sm text-steel">Only some copies of each property exist. First to click gets it.</span></span>
           </label>
-          <button className="btn btn-navy w-full !py-3.5 text-lg" disabled={busy}>{busy ? "Creating…" : "Create game room"}</button>
+          <button className="btn btn-navy w-full !py-3.5 text-lg" disabled={busy}>{busy ? progress ?? "Creating…" : "Create game room"}</button>
         </form>
 
         <form onSubmit={resume} className="card h-fit space-y-4 p-6">

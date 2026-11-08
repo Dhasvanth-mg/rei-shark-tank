@@ -126,8 +126,8 @@ function Player({ code, token }: { code: string; token: string }) {
           >
             <span className="text-4xl">🎰</span>
             <span className="flex-1">
-              <span className="font-display block text-lg font-black">All on red?</span>
-              <span className="block text-sm text-white/60">Put all {money(me.cash, { compact: true })} of your cash on red or black. Double it, or lose it all.</span>
+              <span className="font-display block text-lg font-black">The Casino</span>
+              <span className="block text-sm text-white/60">Red/black, lucky number, dice. Go all in with {money(me.cash, { compact: true })}. Winnings taxed {Math.round(game.tax_gamble * 100)}%.</span>
             </span>
             <span className="text-2xl">›</span>
           </button>
@@ -154,8 +154,9 @@ function Player({ code, token }: { code: string; token: string }) {
                 <Row k="Rent collected" v={money(me.rent_total)} good />
                 <Row k="Expenses and fees" v={money(-me.expense_total)} bad />
                 <Row k="Outstanding debt" v={money(-me.debt)} bad={me.debt > 0} />
+                <Row k="Taxes paid" v={money(-me.tax_total)} bad={me.tax_total > 0} />
               </dl>
-              <p className="mt-3 text-xs text-steel">Net worth = cash (rent collected, minus expenses) + property market values − debt.</p>
+              <p className="mt-3 text-xs text-steel">Taxes: {Math.round(game.tax_rent * 100)}% of rent, {Math.round(game.tax_gains * 100)}% of profit when you sell a property, {Math.round(game.tax_gamble * 100)}% of gambling winnings. Net worth = cash (after rent, expenses and taxes) + property market values − debt.</p>
             </div>
             <LoanCard game={game} me={me} open={open && game.phase === "round"} busy={busy} onBorrow={(n) => run(async () => { await rpc("borrow", { p_code: code, p_token: token, p_amount: n }); await refresh(); }, `Borrowed ${money(n)}`)} onRepay={(n) => run(async () => { await rpc("repay", { p_code: code, p_token: token, p_amount: n }); await refresh(); }, "Loan repaid")} />
             {me.holdings.length === 0 ? (
@@ -190,7 +191,7 @@ function Player({ code, token }: { code: string; token: string }) {
         </div>
       </nav>
 
-      {gambling && <GambleModal code={code} token={token} cash={me.cash} onClose={() => setGambling(false)} onSettled={() => void refresh()} />}
+      {gambling && <GambleModal code={code} token={token} cash={me.cash} taxRate={game.tax_gamble} limit={game.gamble_limit} onClose={() => setGambling(false)} onSettled={() => void refresh()} />}
 
       {editing && (
         <ProfileEditor

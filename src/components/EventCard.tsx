@@ -21,6 +21,11 @@ export function EventCard({ event, big = false, dark = false }: { event: GameEve
         </div>
       </div>
       {event.description && <p className={`mt-3 text-white/60 ${big ? "text-xl" : "text-sm"}`}>{event.description}</p>}
+      {!!event.rate && (
+        <div className={`mt-4 inline-flex items-center gap-2 rounded-xl px-3 py-2 font-extrabold ${event.rate > 0 ? "bg-red-500/90" : "bg-emerald-500/90"} ${big ? "text-xl" : "text-sm"}`}>
+          🏦 Loan rates {event.rate > 0 ? "▲ rising" : "▼ falling"}: {event.rate > 0 ? "+" : ""}{(event.rate * 100).toFixed(1)} pts
+        </div>
+      )}
       <div className={`mt-4 grid gap-2 ${big ? "grid-cols-3" : "grid-cols-2"}`}>
         {hints.map((h) => (
           <div key={h.type} className={`rounded-xl bg-white px-3 py-2 text-ink ${big ? "text-lg" : "text-sm"}`}>

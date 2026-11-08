@@ -551,7 +551,7 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
   const g = state.game;
   const [f, setF] = useState({
     name: g.name, total_rounds: String(g.total_rounds), build_seconds: String(g.build_seconds), round_seconds: String(g.round_seconds),
-    starting_cash: String(g.starting_cash), fee_rate: String(+(g.fee_rate * 100).toFixed(2)), loan_rate: String(+(g.loan_rate * 100).toFixed(2)), loan_cheap_limit: String(g.loan_cheap_limit), loan_penalty_rate: String(+(g.loan_penalty_rate * 100).toFixed(2)),
+    starting_cash: String(g.starting_cash), fee_rate: String(+(g.fee_rate * 100).toFixed(2)), loan_rate: String(+(g.loan_rate * 100).toFixed(2)), loan_cheap_limit: String(g.loan_cheap_limit), loan_penalty_rate: String(+(g.loan_penalty_rate * 100).toFixed(2)), tax_rent: String(+(g.tax_rent * 100).toFixed(2)), tax_gains: String(+(g.tax_gains * 100).toFixed(2)), tax_gamble: String(+(g.tax_gamble * 100).toFixed(2)), gamble_limit: String(g.gamble_limit),
     max_debt: String(g.max_debt), volatility: String(g.volatility), rent_months: String(g.rent_months),
   });
   const [scarcity, setScarcity] = useState(g.scarcity);
@@ -559,7 +559,7 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }));
   const save = () => call("admin_update_settings", { p_settings: {
     name: f.name, total_rounds: Number(f.total_rounds), build_seconds: Number(f.build_seconds), round_seconds: Number(f.round_seconds),
-    starting_cash: Number(f.starting_cash), fee_rate: Number(f.fee_rate) / 100, loan_rate: Number(f.loan_rate) / 100, loan_cheap_limit: Number(f.loan_cheap_limit), loan_penalty_rate: Number(f.loan_penalty_rate) / 100,
+    starting_cash: Number(f.starting_cash), fee_rate: Number(f.fee_rate) / 100, loan_rate: Number(f.loan_rate) / 100, loan_cheap_limit: Number(f.loan_cheap_limit), loan_penalty_rate: Number(f.loan_penalty_rate) / 100, tax_rent: Number(f.tax_rent) / 100, tax_gains: Number(f.tax_gains) / 100, tax_gamble: Number(f.tax_gamble) / 100, gamble_limit: Number(f.gamble_limit),
     max_debt: Number(f.max_debt), volatility: Number(f.volatility), rent_months: Number(f.rent_months), scarcity, gamble_enabled: gamble,
   } }, "Settings saved");
   return (
@@ -577,6 +577,10 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
           <Mini label="Loan interest % / round"><input className="input num" type="number" step="0.5" value={f.loan_rate} onChange={(e) => set("loan_rate", e.target.value)} /></Mini>
           <Mini label="Cheap credit up to ($)"><input className="input num" type="number" value={f.loan_cheap_limit} onChange={(e) => set("loan_cheap_limit", e.target.value)} /></Mini>
           <Mini label="Penalty interest % / round"><input className="input num" type="number" step="1" value={f.loan_penalty_rate} onChange={(e) => set("loan_penalty_rate", e.target.value)} /></Mini>
+          <Mini label="Rent tax %"><input className="input num" type="number" value={f.tax_rent} onChange={(e) => set("tax_rent", e.target.value)} /></Mini>
+          <Mini label="Sale gains tax %"><input className="input num" type="number" value={f.tax_gains} onChange={(e) => set("tax_gains", e.target.value)} /></Mini>
+          <Mini label="Gambling tax %"><input className="input num" type="number" value={f.tax_gamble} onChange={(e) => set("tax_gamble", e.target.value)} /></Mini>
+          <Mini label="Bets per round"><input className="input num" type="number" value={f.gamble_limit} onChange={(e) => set("gamble_limit", e.target.value)} /></Mini>
           <Mini label="Max loan ($)"><input className="input num" type="number" value={f.max_debt} onChange={(e) => set("max_debt", e.target.value)} /></Mini>
           <Mini label="Chaos (0–5×)"><input className="input num" type="number" step="0.25" value={f.volatility} onChange={(e) => set("volatility", e.target.value)} /></Mini>
           <Mini label="Months of rent / round"><input className="input num" type="number" value={f.rent_months} onChange={(e) => set("rent_months", e.target.value)} /></Mini>
@@ -587,7 +591,7 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
         </label>
         <label className="flex items-start gap-3 rounded-xl bg-steel-pale p-3">
           <input type="checkbox" className="mt-1 h-5 w-5 accent-navy" checked={gamble} onChange={(e) => setGamble(e.target.checked)} />
-          <span><b>All on red or black</b><span className="block text-sm text-steel">Lets players bet all their cash on a roulette spin once per round (double or nothing, one green zero).</span></span>
+          <span><b>Casino</b><span className="block text-sm text-steel">Red/black, lucky number and dice bets with ¼, ½ or all-in stakes, during market rounds.</span></span>
         </label>
         <button className="btn btn-navy w-full !py-3" disabled={busy} onClick={save}>Save settings</button>
         <p className="text-xs text-steel">Net worth = cash + property market values − debt, where cash already includes rent collected minus repairs, fees and interest.</p>

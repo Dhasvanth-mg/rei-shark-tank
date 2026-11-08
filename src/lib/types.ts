@@ -4,7 +4,7 @@ export interface Game {
   id: string; code: string; name: string; solo: boolean; phase: Phase; round: number; total_rounds: number;
   build_seconds: number; round_seconds: number; starting_cash: number; fee_rate: number; loan_rate: number;
   max_debt: number; volatility: number; rent_months: number; scarcity: boolean; trading_locked: boolean;
-  leaderboard_hidden: boolean; gamble_enabled: boolean; loan_cheap_limit: number; loan_penalty_rate: number; paused: boolean; paused_remaining: number | null; ends_at: string | null;
+  leaderboard_hidden: boolean; gamble_enabled: boolean; loan_cheap_limit: number; tax_rent: number; tax_gains: number; tax_gamble: number; gamble_limit: number; loan_penalty_rate: number; paused: boolean; paused_remaining: number | null; ends_at: string | null;
   event_id: string | null; seconds_left: number | null;
 }
 
@@ -21,10 +21,10 @@ export interface PlayerRow {
 }
 
 export interface Holding { property_id: string; purchase_price: number; bought_round: number }
-export interface Me extends PlayerRow { holdings: Holding[] }
+export interface Me extends PlayerRow { holdings: Holding[]; tax_total: number }
 
 export interface Hint { type: string; v: number; r: number; m: number }
-export interface GameEvent { id: string; title: string; emoji: string; headline: string; description: string; hints: Hint[] }
+export interface GameEvent { id: string; title: string; emoji: string; headline: string; description: string; hints: Hint[]; rate?: number }
 
 export interface PropChange { property_id: string; old_value: number; new_value: number; value_pct: number; rent_pct: number; maint_pct: number }
 export interface RoundLog { round: number; event: { id: string; title: string; emoji: string; headline: string; description: string }; changes: PropChange[]; loan_rate: number }
