@@ -1,5 +1,5 @@
 "use client";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { rpc } from "@/lib/supabase";
@@ -14,6 +14,7 @@ import { EventCard, RoundRecap } from "@/components/EventCard";
 import { Avatar, EmojiPicker } from "@/components/EmojiPicker";
 import type { EventDef, GameState, PlayerRow, Property } from "@/lib/types";
 import { GENERATOR_TYPES, randomProperty } from "@/lib/generator";
+import { fillPhotos, photoFor } from "@/lib/photos";
 import { PropertyImage } from "@/components/PropertyArt";
 
 type Tab = "control" | "players" | "properties" | "events" | "settings";
@@ -65,6 +66,27 @@ function Console({ code, pass, onLogout }: { code: string; pass: string; onLogou
   const secs = useCountdown(state?.game, offset);
   const origin = useSyncExternalStore(noopSubscribe, currentOrigin, () => "");
 
+  const [photoMsg, setPhotoMsg] = useState<string | null>(null);
+  const autoRan = useRef(false);
+  const getPhotos = async (force = false) => {
+    if (!state) return;
+    await Promise.resolve();
+    setPhotoMsg("Finding photos…");
+    try {
+      const n = await fillPhotos(state.properties, (id, url) => rpc("admin_update_property", { p_code: code, p_pass: pass, p_property: id, p_patch: { image_url: url } }),
+        (d, t) => setPhotoMsg(`Photos ${d}/${t}`), force);
+      await refresh();
+      setPhotoMsg(n ? `Added ${n} photos` : "No new photos found");
+    } catch (e) { setPhotoMsg((e as Error).message); }
+    setTimeout(() => setPhotoMsg(null), 4000);
+  };
+  useEffect(() => {
+    if (state && !autoRan.current && state.properties.some((p) => p.enabled && !p.image_url)) {
+      autoRan.current = true;
+      void getPhotos();
+    }
+  });
+
   const call: Call = (fn, args = {}, ok) => run(async () => { await rpc(fn, { p_code: code, p_pass: pass, ...args }); await refresh(); }, ok);
 
   if (error === "bad_admin") return <PassGate code={code} />;
@@ -106,7 +128,7 @@ function Console({ code, pass, onLogout }: { code: string; pass: string; onLogou
       <div className="mx-auto max-w-6xl px-4 pt-5">
         {tab === "control" && <ControlTab state={state} call={call} busy={busy} secs={secs} joinUrl={joinUrl} />}
         {tab === "players" && <PlayersTab state={state} call={call} run={run} busy={busy} />}
-        {tab === "properties" && <PropertiesTab state={state} call={call} busy={busy} />}
+        {tab === "properties" && <PropertiesTab state={state} call={call} busy={busy} onPhotos={getPhotos} photoMsg={photoMsg} />}
         {tab === "events" && <EventsTab state={state} call={call} busy={busy} />}
         {tab === "settings" && <SettingsTab state={state} call={call} busy={busy} code={code} />}
       </div>
@@ -325,12 +347,14 @@ function PlayerEditor({ player, state, call, busy, onClose }: { player: PlayerRo
 
 /* --------------------------------------------------------------- Properties */
 
-function PropertiesTab({ state, call, busy }: { state: GameState; call: Call; busy: boolean }) {
+function PropertiesTab({ state, call, busy, onPhotos, photoMsg }: { state: GameState; call: Call; busy: boolean; onPhotos: (force?: boolean) => Promise<void>; photoMsg: string | null }) {
   const [adding, setAdding] = useState(false);
   const generate = async (n: number) => {
     const types = [...GENERATOR_TYPES].sort(() => Math.random() - 0.5);
     for (let i = 0; i < n; i++) {
-      const ok = await call("admin_add_property", { p_def: randomProperty(n > 1 ? types[i % types.length] : undefined) });
+      const def = randomProperty(n > 1 ? types[i % types.length] : undefined);
+      const image_url = await photoFor(def.type);
+      const ok = await call("admin_add_property", { p_def: { ...def, image_url } });
       if (!ok) return;
     }
   };
@@ -339,6 +363,8 @@ function PropertiesTab({ state, call, busy }: { state: GameState; call: Call; bu
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl font-black">Marketplace</h2>
         <div className="flex flex-wrap gap-2">
+          <button className="btn btn-ghost text-sm" disabled={!!photoMsg} onClick={() => onPhotos(false)}>{photoMsg ?? "📷 Auto-fetch photos"}</button>
+          <button className="btn btn-ghost text-sm" disabled={!!photoMsg} onClick={() => { if (confirm("Replace every property photo with a fresh one?")) void onPhotos(true); }}>🔄 Reshuffle all</button>
           <button className="btn btn-ink text-sm" disabled={busy} onClick={() => generate(5)}>🎲 Generate 5 random</button>
           <button className="btn btn-ghost text-sm" disabled={busy} onClick={() => generate(1)}>🎲 +1</button>
           <button className="btn btn-navy text-sm" onClick={() => setAdding((a) => !a)}>{adding ? "Close" : "+ Add property"}</button>
@@ -525,15 +551,16 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
   const g = state.game;
   const [f, setF] = useState({
     name: g.name, total_rounds: String(g.total_rounds), build_seconds: String(g.build_seconds), round_seconds: String(g.round_seconds),
-    starting_cash: String(g.starting_cash), fee_rate: String(+(g.fee_rate * 100).toFixed(2)), loan_rate: String(+(g.loan_rate * 100).toFixed(2)),
+    starting_cash: String(g.starting_cash), fee_rate: String(+(g.fee_rate * 100).toFixed(2)), loan_rate: String(+(g.loan_rate * 100).toFixed(2)), loan_cheap_limit: String(g.loan_cheap_limit), loan_penalty_rate: String(+(g.loan_penalty_rate * 100).toFixed(2)),
     max_debt: String(g.max_debt), volatility: String(g.volatility), rent_months: String(g.rent_months),
   });
   const [scarcity, setScarcity] = useState(g.scarcity);
+  const [gamble, setGamble] = useState(g.gamble_enabled);
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }));
   const save = () => call("admin_update_settings", { p_settings: {
     name: f.name, total_rounds: Number(f.total_rounds), build_seconds: Number(f.build_seconds), round_seconds: Number(f.round_seconds),
-    starting_cash: Number(f.starting_cash), fee_rate: Number(f.fee_rate) / 100, loan_rate: Number(f.loan_rate) / 100,
-    max_debt: Number(f.max_debt), volatility: Number(f.volatility), rent_months: Number(f.rent_months), scarcity,
+    starting_cash: Number(f.starting_cash), fee_rate: Number(f.fee_rate) / 100, loan_rate: Number(f.loan_rate) / 100, loan_cheap_limit: Number(f.loan_cheap_limit), loan_penalty_rate: Number(f.loan_penalty_rate) / 100,
+    max_debt: Number(f.max_debt), volatility: Number(f.volatility), rent_months: Number(f.rent_months), scarcity, gamble_enabled: gamble,
   } }, "Settings saved");
   return (
     <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
@@ -548,6 +575,8 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
           <Mini label="Starting cash ($)"><input className="input num" type="number" value={f.starting_cash} onChange={(e) => set("starting_cash", e.target.value)} /></Mini>
           <Mini label="Trade fee %"><input className="input num" type="number" step="0.5" value={f.fee_rate} onChange={(e) => set("fee_rate", e.target.value)} /></Mini>
           <Mini label="Loan interest % / round"><input className="input num" type="number" step="0.5" value={f.loan_rate} onChange={(e) => set("loan_rate", e.target.value)} /></Mini>
+          <Mini label="Cheap credit up to ($)"><input className="input num" type="number" value={f.loan_cheap_limit} onChange={(e) => set("loan_cheap_limit", e.target.value)} /></Mini>
+          <Mini label="Penalty interest % / round"><input className="input num" type="number" step="1" value={f.loan_penalty_rate} onChange={(e) => set("loan_penalty_rate", e.target.value)} /></Mini>
           <Mini label="Max loan ($)"><input className="input num" type="number" value={f.max_debt} onChange={(e) => set("max_debt", e.target.value)} /></Mini>
           <Mini label="Chaos (0–5×)"><input className="input num" type="number" step="0.25" value={f.volatility} onChange={(e) => set("volatility", e.target.value)} /></Mini>
           <Mini label="Months of rent / round"><input className="input num" type="number" value={f.rent_months} onChange={(e) => set("rent_months", e.target.value)} /></Mini>
@@ -555,6 +584,10 @@ function SettingsTab({ state, call, busy, code }: { state: GameState; call: Call
         <label className="flex items-start gap-3 rounded-xl bg-steel-pale p-3">
           <input type="checkbox" className="mt-1 h-5 w-5 accent-navy" checked={scarcity} onChange={(e) => setScarcity(e.target.checked)} />
           <span><b>Limited stock</b><span className="block text-sm text-steel">Sets stock when the build phase starts (about 60% of players per property).</span></span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl bg-steel-pale p-3">
+          <input type="checkbox" className="mt-1 h-5 w-5 accent-navy" checked={gamble} onChange={(e) => setGamble(e.target.checked)} />
+          <span><b>All on red or black</b><span className="block text-sm text-steel">Lets players bet all their cash on a roulette spin once per round (double or nothing, one green zero).</span></span>
         </label>
         <button className="btn btn-navy w-full !py-3" disabled={busy} onClick={save}>Save settings</button>
         <p className="text-xs text-steel">Net worth = cash + property market values − debt, where cash already includes rent collected minus repairs, fees and interest.</p>

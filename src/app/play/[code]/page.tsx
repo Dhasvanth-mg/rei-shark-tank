@@ -13,6 +13,7 @@ import { PropertyCard } from "@/components/PropertyCard";
 import { Leaderboard } from "@/components/Leaderboard";
 import { EventCard, RoundRecap } from "@/components/EventCard";
 import { Timer } from "@/components/Timer";
+import { GambleModal } from "@/components/GambleModal";
 import type { GameState } from "@/lib/types";
 
 type Tab = "market" | "portfolio" | "ranks";
@@ -51,6 +52,7 @@ function Player({ code, token }: { code: string; token: string }) {
   const { busy, msg, run, flash } = useAct();
   const [tab, setTab] = useState<Tab>("market");
   const [editing, setEditing] = useState(false);
+  const [gambling, setGambling] = useState(false);
   const secs = useCountdown(state?.game, offset);
 
   if (!state && error) return <Splash text={error} />;
@@ -67,6 +69,7 @@ function Player({ code, token }: { code: string; token: string }) {
   }
 
   const { game, me, properties, event } = state;
+  const myRank = state.players.find((p) => p.id === me.id)?.rank ?? 0;
   const holdings = new Map(me.holdings.map((h) => [h.property_id, h]));
   const propValue = me.net_worth - me.cash + me.debt;
   const open = (game.phase === "building" || game.phase === "round") && !game.trading_locked && !game.paused && (secs === null || secs > 0);
@@ -93,7 +96,7 @@ function Player({ code, token }: { code: string; token: string }) {
             )}
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <Stat label="Net worth" value={money(me.net_worth, { compact: true })} sub={`#${me.rank} of ${state.players.length}`} strong />
+            <Stat label="Net worth" value={money(me.net_worth, { compact: true })} sub={`#${myRank} of ${state.players.length}`} strong />
             <Stat label="Cash" value={money(me.cash, { compact: true })} />
             <Stat label="Properties" value={money(propValue, { compact: true })} sub={me.debt ? `${money(me.debt, { compact: true })} debt` : `${me.holdings.length} owned`} />
           </div>
@@ -109,11 +112,26 @@ function Player({ code, token }: { code: string; token: string }) {
         {game.phase === "round" && game.trading_locked && <Panel icon="🔒" title="Trading locked" text="The host paused trading for a moment." />}
         {game.phase === "round_end" && lastLog && (
           <>
-            <Panel icon="📊" title={`Round ${lastLog.round} complete`} text={`You ranked #${me.rank}. Rent, repairs and interest have been settled. ${game.round < game.total_rounds ? "Next event is coming up." : "Final results are next."}`} />
+            <Panel icon="📊" title={`Round ${lastLog.round} complete`} text={`You ranked #${myRank}. Rent, repairs and interest have been settled. ${game.round < game.total_rounds ? "Next event is coming up." : "Final results are next."}`} />
             <RoundRecap log={lastLog} properties={properties} />
           </>
         )}
         {game.phase === "finished" && <FinalCard state={state} />}
+
+        {game.phase === "round" && game.gamble_enabled && (
+          <button
+            onClick={() => setGambling(true)}
+            disabled={!open || me.cash < 1000}
+            className="flex w-full items-center gap-3 rounded-2xl bg-ink p-4 text-left text-white shadow-lg transition active:scale-[0.99] disabled:opacity-50"
+          >
+            <span className="text-4xl">🎰</span>
+            <span className="flex-1">
+              <span className="font-display block text-lg font-black">All on red?</span>
+              <span className="block text-sm text-white/60">Put all {money(me.cash, { compact: true })} of your cash on red or black. Double it, or lose it all.</span>
+            </span>
+            <span className="text-2xl">›</span>
+          </button>
+        )}
 
         {tab === "market" && (
           <section aria-label="Marketplace" className="grid gap-4 sm:grid-cols-2">
@@ -172,6 +190,8 @@ function Player({ code, token }: { code: string; token: string }) {
         </div>
       </nav>
 
+      {gambling && <GambleModal code={code} token={token} cash={me.cash} onClose={() => setGambling(false)} onSettled={() => void refresh()} />}
+
       {editing && (
         <ProfileEditor
           code={code} token={token} nick={me.nickname} emoji={me.emoji}
@@ -222,14 +242,18 @@ function LoanCard({ game, me, open, busy, onBorrow, onRepay }: { game: GameState
       <div className="flex items-center justify-between">
         <div>
           <div className="label">Bank loan</div>
-          <div className="text-sm text-ink/70">{(game.loan_rate * 100).toFixed(1)}% interest per round. Borrow to reinvest, but debt counts against you.</div>
+          <div className="text-sm text-ink/70">
+            The first <b>{money(game.loan_cheap_limit)}</b> costs <b>{(game.loan_rate * 100).toFixed(1)}%</b> per round. Every dollar beyond that costs <b className="text-down">{(game.loan_penalty_rate * 100).toFixed(0)}%</b> per round.
+          </div>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button className="btn btn-navy" disabled={!open || busy || room <= 0} onClick={() => onBorrow(Math.min(step, room))}>Borrow {money(Math.min(step, room), { compact: true })}</button>
         <button className="btn btn-ghost" disabled={!open || busy || me.debt <= 0 || me.cash <= 0} onClick={() => onRepay(Math.min(step, me.debt))}>Repay {money(Math.min(step, me.debt || step), { compact: true })}</button>
       </div>
-      <p className="mt-2 text-xs text-steel">Limit {money(game.max_debt)}. Loans are available during market rounds.</p>
+      <p className="mt-2 text-xs text-steel">
+        You owe {money(me.debt)}{me.debt >= game.loan_cheap_limit ? <b className="text-down"> · the next dollar costs {(game.loan_penalty_rate * 100).toFixed(0)}% per round</b> : <> · {money(Math.max(0, game.loan_cheap_limit - me.debt))} of cheap credit left</>}. Hard limit {money(game.max_debt)}. Loans open during market rounds.
+      </p>
     </div>
   );
 }
@@ -237,7 +261,8 @@ function LoanCard({ game, me, open, busy, onBorrow, onRepay }: { game: GameState
 function FinalCard({ state }: { state: GameState }) {
   const me = state.me!;
   const winner = state.players[0];
-  const won = me.rank === 1;
+  const myRank = state.players.find((p) => p.id === me.id)?.rank ?? 0;
+  const won = myRank === 1;
   useEffect(() => {
     if (!won) return;
     void import("canvas-confetti").then(({ default: confetti }) => {
@@ -247,8 +272,8 @@ function FinalCard({ state }: { state: GameState }) {
   return (
     <div className={`card overflow-hidden text-center anim-pop`}>
       <div className={`${won ? "bg-navy" : "skyline-bg"} px-6 py-8 text-white`}>
-        <div className="text-6xl">{won ? "🏆" : me.rank <= 3 ? "🥈" : "🏙️"}</div>
-        <h2 className="font-display mt-2 text-3xl font-black">{won ? "You won!" : `You finished #${me.rank}`}</h2>
+        <div className="text-6xl">{won ? "🏆" : myRank <= 3 ? "🥈" : "🏙️"}</div>
+        <h2 className="font-display mt-2 text-3xl font-black">{won ? "You won!" : `You finished #${myRank}`}</h2>
         <p className="text-white/70">Final net worth</p>
         <div className="num text-4xl font-black">{money(me.net_worth)}</div>
       </div>

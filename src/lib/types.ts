@@ -4,7 +4,7 @@ export interface Game {
   id: string; code: string; name: string; solo: boolean; phase: Phase; round: number; total_rounds: number;
   build_seconds: number; round_seconds: number; starting_cash: number; fee_rate: number; loan_rate: number;
   max_debt: number; volatility: number; rent_months: number; scarcity: boolean; trading_locked: boolean;
-  leaderboard_hidden: boolean; paused: boolean; paused_remaining: number | null; ends_at: string | null;
+  leaderboard_hidden: boolean; gamble_enabled: boolean; loan_cheap_limit: number; loan_penalty_rate: number; paused: boolean; paused_remaining: number | null; ends_at: string | null;
   event_id: string | null; seconds_left: number | null;
 }
 
